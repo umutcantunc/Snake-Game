@@ -1,3 +1,6 @@
+![tanitim](https://github.com/user-attachments/assets/b8ab78a2-2ece-4b6f-a219-61ae30d0e3c8)
+
+
 🐍 Yılan Oyunu (Snake Game)
 C programlama dili ve Raylib kütüphanesi kullanılarak geliştirilmiş, modern mekaniklere ve görsellere sahip bir yılan oyunudur.
 
