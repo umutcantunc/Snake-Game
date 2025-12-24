@@ -52,6 +52,7 @@ typedef struct {
     Yilan yilan;
     Yem yemler[MAX_YEM_SAYISI]; //en cok kullanılacak olanlardan. genel olarak tum yemlerı kapsar
     int skor;
+    int YuksekSkorlar[5];
     int MaxSkor;
     bool OyunDurumu;
     int ZamanKareSayaci; //Yilan cok hizli gitmemesi icin bir kontol sayaci
@@ -348,29 +349,48 @@ void YilanCizdir(Oyun *oyun) {
 }
 
 
+// En yüksek 5 skoru dosyadan yükle
 void RekoruYukle(Oyun *oyun) {
-
-    FILE *dosya = fopen("rekor.txt", "r"); //r okuma modu
-
-    if (dosya != NULL) { //dosya varsa
-        fscanf(dosya, "%d", &oyun->MaxSkor);
-        fclose(dosya);
-    } else { //dosya yoksa basta 0 ata.
-        oyun->MaxSkor = 0;
-    }
-}
-
-
-void RekoruKaydet(Oyun *oyun) {
-
-    FILE *dosya = fopen("rekor.txt", "w"); //w yazma modu uzerıne yazar
-
+    FILE *dosya = fopen("rekorlar.txt", "r");
     if (dosya != NULL) {
-        fprintf(dosya, "%d", oyun->MaxSkor);
+        for (int i = 0; i < 5; i++) {
+            if (fscanf(dosya, "%d", &oyun->YuksekSkorlar[i]) == EOF) {
+                oyun->YuksekSkorlar[i] = 0; // Dosyada yeterli skor yoksa 0 ata
+            }
+        }
+        fclose(dosya);
+    } else {
+        for (int i = 0; i < 5; i++) oyun->YuksekSkorlar[i] = 0;
+    }
+    oyun->MaxSkor = oyun->YuksekSkorlar[0]; // En yüksek skor her zaman ilk sıradadır
+}
+
+// En yüksek 5 skoru dosyaya kaydet
+void RekoruKaydet(Oyun *oyun) {
+    FILE *dosya = fopen("rekorlar.txt", "w");
+    if (dosya != NULL) {
+        for (int i = 0; i < 5; i++) {
+            fprintf(dosya, "%d\n", oyun->YuksekSkorlar[i]);
+        }
         fclose(dosya);
     }
 }
 
+// Yeni bir skor alındığında listeyi güncelle
+void SkorEkle(Oyun *oyun, int yeniSkor) {
+    for (int i = 0; i < 5; i++) {
+        if (yeniSkor > oyun->YuksekSkorlar[i]) {
+            // Kendisinden küçük olanları aşağı kaydır (Insertion Sort mantığı)
+            for (int j = 4; j > i; j--) {
+                oyun->YuksekSkorlar[j] = oyun->YuksekSkorlar[j - 1];
+            }
+            oyun->YuksekSkorlar[i] = yeniSkor;
+            RekoruKaydet(oyun); // Listeyi güncelle ve kaydet
+            oyun->MaxSkor = oyun->YuksekSkorlar[0];
+            break;
+        }
+    }
+}
 
 
 bool CarpismaAlgila (Oyun *oyun) { //Carpinca oyunun bittigini kontrol ettigimiz fonksiyon
@@ -397,10 +417,13 @@ bool CarpismaAlgila (Oyun *oyun) { //Carpinca oyunun bittigini kontrol ettigimiz
         if (oyun->yilan.govde[i].x == oyun->yilan.govde[0].x  && oyun->yilan.govde[i].y == oyun->yilan.govde[0].y) { //kendine carpma kontrolu
 
             PlaySound(oyun->sesCarpma);
+            SkorEkle(oyun,oyun->skor);
 
             if (oyun->skor > oyun->MaxSkor) { //rekor kırma kontrolu
                 oyun->MaxSkor = oyun->skor;
                 RekoruKaydet(oyun);
+
+
             }
 
             return true; //carpısma olduysa true
@@ -487,7 +510,7 @@ void ResimleriYukle(Oyun *oyun) {
     int gozBebegiBoyutu = gozBoyutu / 2;
     int solGozX = HUCRE_BOYUTU / 4 - gozBoyutu/2;
     int sagGozX = (HUCRE_BOYUTU * 3) / 4 - gozBoyutu/2;
-    int gozY = HUCRE_BOYUTU / 4;
+    int gozY = HUCRE_BOYUTU / 4; //goz yukseklık
 
     // sol goz beyazı
     ImageDrawRectangle(&imgKafa, solGozX, gozY, gozBoyutu, gozBoyutu, WHITE);
@@ -607,11 +630,25 @@ int main(void) {
 
         switch (oyun.guncelSahne) {
             case SAHNE_MENU:
-                ArkaPlanCiz(&oyun); // Menü arkasında çimler gözüksün
+
+                ArkaPlanCiz(&oyun); // Arka planda dama tahtası gözüksün
+
+                // Ekranı hafif karart (Metinlerin okunması için)
                 DrawRectangle(0, 0, EKRAN_GENISLIK, EKRAN_YUKSEKLIK, Fade(BLACK, 0.6f));
-                DrawText("YILAN OYUNU", EKRAN_GENISLIK/2 - 150, 200, 50, GREEN);
-                DrawText("BASLAMAK ICIN 'ENTER' BAS", EKRAN_GENISLIK/2 - 180, 350, 25, WHITE);
-                DrawText(TextFormat("EN YUKSEK SKOR: %d", oyun.MaxSkor), EKRAN_GENISLIK/2 - 100, 450, 20, YELLOW);
+
+                // top 5 listesi cizdir
+                DrawText("TOP 5 REKOR", 20, 20, 22, YELLOW); // Başlık
+                for (int i = 0; i < 5; i++) {
+                    // Her skoru bir alt satıra (i * 25 piksel aşağı) yazdır
+                    DrawText(TextFormat("%d. %03d", i + 1, oyun.YuksekSkorlar[i]), 20, 55 + (i * 25), 20, WHITE);
+                }
+
+                //  ANA BAŞLIK VE TALİMAT - ORTA
+                DrawText("YILAN OYUNU", EKRAN_GENISLIK/2 - 150, EKRAN_YUKSEKLIK/2 - 50, 50, GREEN);
+                DrawText("BASLAMAK ICIN 'ENTER' BAS", EKRAN_GENISLIK/2 - 180, EKRAN_YUKSEKLIK/2 + 30, 25, LIGHTGRAY);
+
+                // En yüksek skoru ayrıca vurgulamak icin
+                DrawText(TextFormat("EN YUKSEK: %d", oyun.MaxSkor), EKRAN_GENISLIK/2 - 80, EKRAN_YUKSEKLIK - 100, 20, GOLD);
                 break;
 
             case SAHNE_OYUN:
